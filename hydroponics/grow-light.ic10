@@ -1,0 +1,23 @@
+define growLights -1758710260
+define onNumTicks 1200 # 10 min = 600s * 2 ticks/s
+define offNumTicks 480 # 4 min = 240s * 2 ticks/s
+define maxTicks 1680 # 14 min = 840s * 2 ticks/s
+
+alias tickCounter r0
+alias lightStatus r1
+
+setup:
+    move tickCounter 0 # reset counter
+    move lightStatus 0 # start with lights off
+
+mainLoop:
+    sle lightStatus tickCounter onNumTicks # check if counter is less than onNumTicks
+    sb growLights On lightStatus # turn on lights if counter is less than onNumTicks
+    yield # wait for next tick - 0.5s
+    add tickCounter tickCounter 1 # increment counter
+    bgtal tickCounter maxTicks resetCounter # check if counter is greater than offNumTicks
+    j mainLoop
+
+resetCounter:
+    move tickCounter 0 # reset counter
+    j ra

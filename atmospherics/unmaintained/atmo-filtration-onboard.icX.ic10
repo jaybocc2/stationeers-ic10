@@ -1,0 +1,59 @@
+move r0 0
+jal mainLoop
+j 0
+mainLoop:
+s db Open 0
+s db Mode 0
+jal doFilterGas
+j ra
+checkFilters:
+move r0 0
+move r1 0
+move r2 0
+ls r3 db 0 Occupied
+ls r4 db 1 Occupied
+ls r5 db 0 OccupantHash
+ls r6 db 1 OccupantHash
+sgtz r15 r3
+beqz r15 if0exit
+ls r1 db 0 Quantity
+if0exit:
+sgtz r15 r4
+beqz r15 if1exit
+ls r2 db 1 Quantity
+if1exit:
+sgt r15 r3 1
+sgt r14 r4 1
+sne r13 r5 r6
+and r12 r15 r14
+and r12 r13 r13
+beqz r12 if2else
+sgtz r11 r1
+sgtz r10 r2
+and r9 r11 r10
+beqz r9 if3exit
+move r0 1
+if3exit:
+j if2exit
+if2else:
+sgtz r11 r1
+sgtz r10 r2
+or r9 r11 r10
+beqz r9 if4exit
+move r0 1
+if4exit:
+if2exit:
+j ra
+doFilterGas:
+l r7 db PressureOutput
+jal checkFilters
+slt r15 r7 50000
+sgtz r14 r0
+and r13 r15 r14
+beqz r13 if5else
+s db Mode 1
+j if5exit
+if5else:
+s db Mode 0
+if5exit:
+j ra

@@ -1,0 +1,16 @@
+alias tank d0 # liquid tank
+alias sensor d1 # gas sensor
+define vent -1129453144 # active vent
+define mvent 938836756 # powered vent
+
+mainLoop:
+    yield
+    l r0 sensor Temperature
+    l r1 tank VolumeOfLiquid
+    sub r0 r0 273 # convert to celcius
+    sle r0 r0 130 # check if temperature is below 130C
+    slt r1 r1 5000 # less than 5000 Liters
+    and r0 r0 r1 # both conditions must be met
+    sb vent On r0
+    sb mvent On r0
+    j mainLoop

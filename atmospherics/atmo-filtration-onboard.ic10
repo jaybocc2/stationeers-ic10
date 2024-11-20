@@ -1,0 +1,75 @@
+alias self db
+# alias pin1 d0 # invalid pins...?
+# alias pin2 d1 # debug LED
+alias filterStatus0 r0
+alias filterStatus1 r1
+alias filterPresent0 r2
+alias filterPresent1 r3
+alias gasPressure r4
+alias gasOk r5
+alias intakeTemp r6
+alias intakeTempOk r7
+alias runFiltration r8
+alias openDoor r9
+alias inputRatioOK r10
+alias inputRatio r11
+
+define kConst 273 # K - 273 = C
+define maxTemp 130 # 130C
+define maxPressure 40000 # 40mpa
+define dualGas 0 # 0 = single gas, 1 = dual gas
+define inputRatioEnabled 1 # 0 = disabled, 1 = enabled
+define inputRatioDesired 0.25 # 25%
+
+mainLoop:
+    yield
+    jal checkFilters
+    beqal dualGas 0 doRunSingleGas
+    beqal dualGas 1 doRunDualGas
+    jal doFilterGas
+    j mainLoop
+
+checkFilters:
+    ls filterPresent0 self 0 Occupied
+    ls filterPresent1 self 1 Occupied
+    ls filterStatus0 self 0 Quantity
+    ls filterStatus1 self 1 Quantity
+    j ra
+
+doRunDualGas:
+    sgt filterStatus0 filterStatus0 0
+    sgt filterStatus1 filterStatus1 0
+    and runFiltration filterStatus0 filterStatus1
+    j ra
+
+doRunSingleGas:
+    sgt filterStatus0 filterStatus0 0
+    sgt filterStatus1 filterStatus1 0
+    or runFiltration filterStatus0 filterStatus1
+    j ra
+
+checkInputRatio:
+    l inputRatio self RatioOxygenInput # change RatioOxygenInput to match your input gas
+    beq inputRatioEnabled 0 ra # skip if disabled
+    sgt inputRatioOK inputRatio inputRatioDesired
+    and runFiltration runFiltration inputRatioOK # only run if ratio is OK
+    j ra
+
+doFilterGas:
+    l gasPressure self PressureOutput
+    l intakeTemp self TemperatureInput
+    sub intakeTemp intakeTemp kConst
+    slt gasOk gasPressure maxPressure
+    sle intakeTempOk intakeTemp maxTemp
+    and runFiltration runFiltration gasOk
+    and runFiltration runFiltration intakeTempOk
+    push ra
+    jal checkInputRatio
+    pop ra
+
+    not openDoor runFiltration
+    s self Mode runFiltration
+    s self Open openDoor
+    j ra
+
+# TODO: add logic to control LED light based on filter status

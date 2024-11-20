@@ -1,0 +1,82 @@
+alias sensor d0 # gas sensor
+alias coldTank d1 # cold gas tank
+alias coldValve d2 # cold gas valve
+alias hotTank d3 # hot gas tank
+alias hotValve d4 # hot gas valve
+alias intakeSensor d5 # pressure of intake gas
+
+define vent -1129453144 # active vent
+define mvent 938836756 # powered vent
+define pipeHeater -419758574 # pipe heater
+
+define minHotIntakeTemp 930 # 930K = 657C
+define maxColdIntakeTemp 423 # 423K = 150C
+define maxPressure 10000 # 40Mpa
+define hotSideTargetTemp 1800 # 1800K = 1527C
+
+alias currentTemp r13
+alias coldPressure r12
+alias hotPressure r11
+alias intakeHot r10
+alias intakeCold r9
+alias intakePressure r8
+alias intakeMode r7
+alias runVent r6
+alias hotSideTemp r5
+
+s intakeSensor On 1
+s intakeSensor Lock 1
+s coldValve Lock 1
+s hotValve Lock 1
+sb mvent Lock 1
+sb vent Lock 1
+sb mvent On 0
+sb vent On 0
+sb pipeHeater On 0
+
+mainLoop:
+    yield
+    l currentTemp sensor Temperature
+    l coldPressure coldTank Pressure
+    l hotPressure hotTank Pressure
+    l hotSideTemp hotTank Temperature
+
+    jal heatHotSide
+
+    sge intakeHot currentTemp minHotIntakeTemp
+    sle intakeCold currentTemp maxColdIntakeTemp
+    or intakeMode intakeHot intakeCold # 0 = exhaust, 1 = intake
+
+    s coldValve On intakeCold
+    s hotValve On intakeHot
+
+    jal manageVent
+    j mainLoop
+
+manageVent:
+    sb vent Mode intakeMode
+    sb mvent Mode intakeMode
+    push ra
+    beqzal intakeMode runExhaustMode
+    bgtzal intakeMode runIntakeMode
+    pop ra
+    j ra
+
+runIntakeMode:
+    l intakePressure intakeSensor Pressure
+    slt runVent intakePressure maxPressure
+    sb vent On runVent
+    sb mvent On runVent
+    j ra
+
+runExhaustMode:
+    l intakePressure intakeSensor Pressure
+    sgt runVent intakePressure 0
+    sb vent On runVent
+    sb mvent On runVent
+    j ra
+
+heatHotSide:
+    slt r0 hotSideTemp hotSideTargetTemp
+    sb pipeHeater On r0
+    j ra

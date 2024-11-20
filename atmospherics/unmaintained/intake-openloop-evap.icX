@@ -1,0 +1,51 @@
+# Stress in % = 4999 x "liters of liquid" / "pipe network volume"
+# VolumeOfLiquid
+# Volume
+# S/4999*V=L
+# l V O1Analyzer Volume
+# l L O1Analyzer VolumeOfLiquid
+# div S L V
+# mul S S 4999
+
+mainLoop()
+# loop forever
+use loop
+
+function mainLoop
+    setup()
+    doRunVent()
+end
+
+function setup
+    openLoopEvaporator.Setting = evapTargetPressure
+    openLoopEvapPurge.Setting = purgeTargetPressure
+    openLoopIntakePurge.Setting = purgeTargetPressure
+    poweredVent.Mode = 1
+    openLoopEvaporator.On = 1
+    openLoopEvapPurge.On = 1
+    openLoopIntakePurge.On = 1
+    atmoPipeAnalyzer.On = 1
+    openLoopEvaporator.Lock = 1
+    openLoopEvapPurge.Lock = 1
+    openLoopIntakePurge.Lock = 1
+    poweredVent.Lock = 1
+end
+
+function getPipeStress
+    var liquidV = atmoPipeAnalyzer.VolumeOfLiquid
+    var v = atmoPipeAnalyzer.Volume
+    var stress = stressConst * liquidV / v
+    return stress
+end
+
+function doRunVent
+    var runVent = 0
+    var gasTemp = gasSensor.Temperature
+    var atmoPipePressure = atmoPipeAnalyzer.Pressure
+    var pipeStress = getPipeStress()
+    if gasTemp <= maxTemp && atmoPipePressure <= maxAtmospherePressure && pipeStress <= maxAtmosphereStress
+        runVent = 1
+    end
+
+    poweredVent.On = runVent
+end

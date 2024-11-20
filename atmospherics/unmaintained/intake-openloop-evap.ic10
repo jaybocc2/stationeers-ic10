@@ -1,0 +1,115 @@
+alias gasSensor d0
+alias poweredVent d1
+alias openLoopEvaporator d2
+alias openLoopEvapPurge d3
+alias openLoopIntakePurge d4    
+alias atmospherePipeAnalyzer d5
+
+alias pipeStress r0
+alias runVent r3
+alias extTemp r4
+alias pressure r5
+alias pollutionRatio r6
+alias pipeTemp r7
+alias ventMode r8
+
+define maxIntakeTemp 415 # 423k ~= 150C
+define minExhaustTemp 430 # 423k ~= 150C
+define evapTargetPressure 3503 # approx 15C
+define purgeTargetPressure 3586 # approx 20C
+define maxAtmospherePressure 50000 # 49mpa
+define minAtmospherePressure 5000 # 4.5mpa
+define startExhaustPressure 42000 # 50mpa
+define minPollutionAtmosphere 10 # 10%
+define maxAtmosphereStress 50 # 50%
+define stressConst 5000
+
+jal setup
+
+mainLoop:
+    yield
+    jal doRunVentIntake
+    yield
+    jal doRunVentExhaust
+    yield
+    j mainLoop
+
+setup:
+    s openLoopEvaporator Setting evapTargetPressure
+    s openLoopEvaporator Lock 1
+    s openLoopEvaporator On 0
+    s openLoopEvapPurge Setting purgeTargetPressure
+    s openLoopEvapPurge On 1
+    s openLoopEvapPurge Lock 1
+    s openLoopIntakePurge Setting purgeTargetPressure
+    s openLoopIntakePurge On 1
+    s openLoopIntakePurge Lock 1
+    s atmospherePipeAnalyzer On 1
+    s poweredVent Mode 1
+    s poweredVent Lock 1
+    s poweredVent On 0
+    j ra
+
+checkPipeStress:
+    alias volume r1
+    alias liquid r2
+    l volume atmospherePipeAnalyzer Volume
+    l liquid atmospherePipeAnalyzer VolumeOfLiquid
+    div pipeStress liquid volume
+    mul pipeStress pipeStress stressConst
+    j ra
+
+getEnvironment:
+    l extTemp gasSensor Temperature
+    l pipeTemp atmospherePipeAnalyzer Temperature
+    l pressure atmospherePipeAnalyzer Pressure
+    l pollutionRatio atmospherePipeAnalyzer RatioPollutant
+    l ventMode poweredVent Mode
+    push ra
+    jal checkPipeStress
+    pop ra
+    j ra
+
+doRunVentIntake:
+    yield
+    move runVent 0
+    push ra
+    jal getEnvironment
+    pop ra
+
+    sle r15 extTemp maxIntakeTemp # r15 = temp <= maxTemp
+    slt r14 pipeStress maxAtmosphereStress # r14 = pipeStress <= maxAtmosphereStress
+    slt r13 pressure maxAtmospherePressure # r13 = pressure <= maxAtmospherePressure
+
+    and runVent r15 r14 # runVent = r15 && r14
+    and runVent runVent r13 # runVent = runVent && r13
+
+    s poweredVent Mode runVent
+    s poweredVent On runVent # poweredVent.On = runVent
+
+    beq runVent 1 doRunVentIntake # loop until we don't run the vent
+    j ra
+
+doRunVentExhaust:
+    yield
+    move runVent 0
+    push ra
+    jal getEnvironment
+    pop ra
+
+    sgt r15 pipeTemp minExhaustTemp # r15 = temp > minExhaustTemp
+    sgt r14 pressure startExhaustPressure # r14 = pressure > maxAtmospherePressure
+    sgt r13 pipeStress maxAtmosphereStress # r13 = pipeStress > maxAtmosphereStress
+    sle r12 pollutionRatio minPollutionAtmosphere # r12 = pollutionRatio <= minPollutionAtmosphere
+    sgt r11 pressure minAtmospherePressure # r11 = pressure > minAtmospherePressure
+
+    and runVent r15 r14 # runVent = r15 && r14
+    or runVent runVent r13 # runVent = runVent || r13
+    or runVent runVent r12 # runVent = runVent || r12
+    and runVent runVent r11 # runVent = runVent && r11
+
+    s poweredVent Mode 0
+    s poweredVent On runVent # poweredVent.On = runVent
+
+    beq runVent 1 doRunVentExhaust # loop until we don't run the vent
+    j ra

@@ -1,0 +1,80 @@
+define growLights -1758710260
+define airConditioners -2087593337
+define onNumTicks 1200 # 10 min = 600s * 2 ticks/s
+define offNumTicks 480 # 4 min = 240s * 2 ticks/s
+define maxTicks 1680 # 14 min = 840s * 2 ticks/s
+define oxygenTankTargetPressure 5000
+define oxygenTankPressureRegulatorTargetPressure 5100
+define wasteTankTargetPressure 0
+define roomTargetPressure 75
+define carbonDioxideRegulatorTargetPressure 85
+define roomTargetTemperature 298 # 25C
+define roomMaxTemperature 299 # 26C
+
+alias oxygenRegulator d0
+alias wasteRegulator d1
+alias oxygenTank d2
+alias wasteTank d3
+alias roomGasSensor d4
+alias carbonDioxideRegulator d5
+
+alias tickCounter r0
+alias lightStatus r1
+alias enableOxygenRegulator r2
+alias enableWasteRegulator r3
+alias enableCarbonDioxideRegulator r4
+alias enableAirConditioners r5
+alias oxygenTankPressure r6
+alias wasteTankPressure r7
+alias roomPressure r8
+alias roomTemperatue r9
+
+setup:
+    move tickCounter 0 # reset counter
+    move lightStatus 0 # start with lights off
+    move enableOxygenRegulator 0
+    move enableWasteRegulator 0
+    move enableCarbonDioxideRegulator 0
+    move enableAirConditioners 0
+    s oxygenRegulator On 0
+    s wasteRegulator On 0
+    s carbonDioxideRegulator On 0
+    s oxygenRegulator Setting oxygenTankPressureRegulatorTargetPressure
+    s wasteRegulator Setting wasteTankTargetPressure
+    s carbonDioxideRegulator Setting carbonDioxideRegulatorTargetPressure
+    s oxygenRegulator Lock 1
+    s wasteRegulator Lock 1
+    s carbonDioxideRegulator Lock 1
+    sb airConditioners On 1
+    sb airConditioners Mode 0
+    sb airConditioners Setting roomTargetTemperature
+    sb airConditioners Lock 1
+    
+
+mainLoop:
+    sle lightStatus tickCounter onNumTicks # check if counter is less than onNumTicks
+    sb growLights On lightStatus # turn on lights if counter is less than onNumTicks
+    yield # wait for next tick - 0.5s
+    add tickCounter tickCounter 1 # increment counter
+    bgtal tickCounter maxTicks resetCounter # check if counter is greater than offNumTicks
+    jal manageTankRegulators
+    j mainLoop
+
+resetCounter:
+    move tickCounter 0 # reset counter
+    j ra
+
+manageTankRegulators:
+    l oxygenTankPressure oxygenTank Pressure
+    l wasteTankPressure wasteTank Pressure
+    l roomPressure roomGasSensor Pressure
+    l roomTemperatue roomGasSensor Temperature
+    slt enableOxygenRegulator oxygenTankPressure oxygenTankTargetPressure
+    sgt enableWasteRegulator wasteTankPressure wasteTankTargetPressure
+    slt enableCarbonDioxideRegulator roomPressure roomTargetPressure
+    sge enableAirConditioners roomTemperatue roomMaxTemperature
+    s oxygenRegulator On enableOxygenRegulator
+    s wasteRegulator On enableWasteRegulator
+    s carbonDioxideRegulator On enableCarbonDioxideRegulator
+    sb airConditioners Mode enableAirConditioners
+    j ra

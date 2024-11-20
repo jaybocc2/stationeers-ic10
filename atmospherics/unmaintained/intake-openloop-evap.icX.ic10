@@ -1,0 +1,42 @@
+jal mainLoop
+j 0
+mainLoop:
+jal setup
+jal doRunVent
+j ra
+setup:
+s d2 Setting 3503
+s d3 Setting 3586
+s d4 Setting 3586
+s d1 Mode 1
+s d2 On 1
+s d3 On 1
+s d4 On 1
+s d5 On 1
+s d2 Lock 1
+s d3 Lock 1
+s d4 Lock 1
+s d1 Lock 1
+j ra
+getPipeStress:
+l r0 d5 VolumeOfLiquid
+l r1 d5 Volume
+mul r15 5000 r0
+div r2 r15 r1
+j ra
+doRunVent:
+move r3 0
+l r4 d0 Temperature
+l r5 d5 Pressure
+jal getPipeStress
+move r6 r3
+sle r15 r4 425
+sle r14 r5 50000
+sle r13 r6 50
+and r12 r15 r14
+and r12 r12 r13
+beqz r12 if0exit
+move r3 1
+if0exit:
+s d1 On r3
+j ra

@@ -1,0 +1,23 @@
+[d0]
+PrefabHash = "StructureGasSensor"
+Temperature = 420
+[d1]
+PrefabHash = "StructurePoweredVentLarge"
+On = 0
+Mode = 0
+PressureInternal = 0
+[d2]
+PrefabHash = "StructureEvaporationChamber"
+On = 0
+[d3]
+PrefabHash = "StructurePurgeValve"
+On = 0
+[d4]
+PrefabHash = "StructurePurgeValve"
+On = 0
+[d5]
+PrefabHash = "StructurePipeAnalysizer"
+On = 0
+VolumeOfLiquid = 0.106
+Volume = 260
+Pressure = 38700

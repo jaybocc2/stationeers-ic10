@@ -1,0 +1,28 @@
+alias hotPump d0
+alias coldPump d1
+# alias hotIntakeValve d2
+# alias coldIntakeValve d3
+# alias gasSensor d4
+
+define furnaceHash 545937711
+define pressureReliefValue 58000
+
+alias currentTemp r14
+alias currentPressure r13
+alias minTemp r12
+alias maxTemp r11
+alias minPress r10
+alias maxPress r9
+alias ingotHash r8
+alias targetPressure r7
+
+push -404336834 # copper ingot hash
+push -1301215609 # iron ingot hash
+push -1406385572 # nickel ingot hash
+push -929742000 # silver ingot hash
+push 226410516 # gold ingot hash
+push 2134647745 # lead ingot hash
+push -290196476 # silicon ingot hash
+push -654790771 # steel ingot hash
+push -297990285 # invar ingot hash
+push 1058547521 # constantan ingot hash

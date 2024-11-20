@@ -1,0 +1,51 @@
+alias self db
+
+const maxTankPressure = 50000
+var filtersOk = 0
+
+mainLoop()
+use loop # loop forever
+
+function mainLoop
+    self.Open = 0
+    self.Mode = 0
+    doFilterGas()
+end
+
+function checkFilters()
+    filtersOk = 0
+    var f0Ok = 0
+    var f1Ok = 0
+    var slot0 = self.slot(0).Occupied
+    var slot1 = self.slot(1).Occupied
+    var slot0type = self.slot(0).OccupantHash
+    var slot1type = self.slot(1).OccupantHash
+
+    if slot0 > 0
+        f0Ok = self.slot(0).Quantity
+    end
+
+    if slot1 > 0
+        f1Ok = self.slot(1).Quantity
+    end
+
+    if slot0 > 1 && slot1 > 1 && slot0type != slot1type
+        if f0Ok > 0 && f1Ok > 0
+            filtersOk = 1
+        end
+    else
+        if f0Ok > 0 || f1Ok > 0
+            filtersOk = 1
+        end
+    end
+end
+
+function doFilterGas()
+    var gasPressure = self.PressureOutput
+    checkFilters()
+    if gasPressure < maxTankPressure && filtersOk > 0
+        self.Mode = 1
+    else
+        self.Mode = 0
+    end
+end
