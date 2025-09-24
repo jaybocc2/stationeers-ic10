@@ -1,0 +1,14 @@
+alias light d0
+s db Mode 0
+
+start:
+yield
+l r0 db TemperatureInput
+l r1 db PressureOutput
+slt r1 r1 1000
+sub r0 r0 273
+slt r0 r0 128
+and r0 r0 r1
+s db Mode r0
+s light On r0
+j start

@@ -1,0 +1,135 @@
+
+# CodeFarmingV2
+#   V2 Improvements:
+#     * Auto powers up RobotArm and ImportBin on start.
+#     * Waits until Hydroponic Device is seeding before continuing.
+#     * If attempt to plant fails, will drop arm item into ImportBin.
+#     * If ImportBin is full, will sleep and retry.
+#     * Code refactored for fewer lines of code.
+#   V3 Improvements:
+#     * Changed liquid pipe for HydroponicTray for full 35 try stations.
+#     * Support for dual ImportBins.
+
+alias dRobotArm d0
+alias dHydroponicDevice d1
+alias dImportBin1 d2
+alias dImportBin2 d3
+
+define MinTrayStationIndex  1
+define MaxTrayStationIndex 35
+define DeviceStationIndex   1
+define Import1StationIndex  0
+define Import2StationIndex 36
+define ImportTravelSplit   18 
+
+alias varFarmStationIndex r4
+alias varPrevStationIndex r5
+alias varRobotArmQuantity r6
+
+alias callArgument1 r8
+alias callArgument2 r9
+alias callReturn r10
+
+initialize:
+  move varFarmStationIndex MinTrayStationIndex
+  move varPrevStationIndex MaxTrayStationIndex
+  s dRobotArm On 1
+  s dImportBin1 On 1
+  s dImportBin2 On 1
+
+mainLoop:
+
+  jal fnGotoFarmStation 
+  jal fnWaitForSeedsIfDeviceStation
+  jal fnPickFirstAndPlantPrev
+  jal fnPickRemaining
+  jal fnIncrementIndexes
+
+endMainLoop:
+  j mainLoop
+
+# Move to the next farming station and update the previous.
+fnIncrementIndexes:
+  move varPrevStationIndex varFarmStationIndex
+  add varFarmStationIndex varFarmStationIndex 1
+  brle varFarmStationIndex MaxTrayStationIndex 2
+  move varFarmStationIndex MinTrayStationIndex
+  j ra
+
+# If farming the hydroponic device, wait for seeding state to occur before returning.
+fnWaitForSeedsIfDeviceStation:
+  push ra
+  brne varFarmStationIndex DeviceStationIndex 5
+  ls r0 dHydroponicDevice 0 Seeding
+  breq r0 1 3
+  sleep 1
+  jr -3
+  pop ra
+  j ra
+
+# First pick of a new farm station and plant the previous farm station.
+fnPickFirstAndPlantPrev:
+  push ra
+  jal fnActivateArm
+  jal fnGotoPrevStation
+  jal fnActivateArm
+  breqz varRobotArmQuantity 2
+  jal fnPutImport
+  pop ra
+  j ra
+
+# Pick the remaining items from the current farm station.
+fnPickRemaining:
+  push ra
+  jal fnGotoFarmStation
+  jal fnActivateArm
+  breqz varRobotArmQuantity 4
+  jal fnPutImport
+  jal fnGotoFarmStation
+  jr -4
+  pop ra
+  j ra
+
+# Move the arm to the ImportBin1 or 2, place the current arm contents, retry if not successful.
+fnPutImport:
+  push ra
+  l r0 dRobotArm Setting
+  sle r0 r0 ImportTravelSplit
+  select callArgument1 r0 Import1StationIndex Import2StationIndex
+  jal fnGotoStation
+  jal fnActivateArm
+  s dImportBin1 Open 0
+  s dImportBin2 Open 0
+  breqz varRobotArmQuantity 3
+  sleep 1
+  jr -5
+  pop ra
+  j ra
+
+# Activate the robot arm at the current location.
+fnActivateArm:
+  s dRobotArm Activate 1
+  j fnWaitForIdle
+
+# Move the robot arm to the current farming station.
+fnGotoFarmStation:
+  move callArgument1 varFarmStationIndex
+  j fnGotoStation
+
+# Move the robot arm to the previous farming station.
+fnGotoPrevStation:
+  move callArgument1 varPrevStationIndex
+  j fnGotoStation
+
+# Move the robot arm to the station specified by callArgument1.
+fnGotoStation:
+  s dRobotArm Setting callArgument1
+  j fnWaitForIdle
+
+# Wait for the current robot operation to complete and cache the current arm quantity.
+fnWaitForIdle:
+  yield
+  l r0 dRobotArm Idle
+  beqz r0 fnWaitForIdle
+  ls varRobotArmQuantity dRobotArm 0 Quantity
+  j ra
