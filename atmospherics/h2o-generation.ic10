@@ -1,16 +1,19 @@
-alias sensor d0
-alias combustor d1
-alias fuelMixer d2
-alias waterTank d3
-alias waterFilter d4
-alias steamCoolingVent d5
+alias waterTank d0
+alias filterWarningLed d1
+alias systemRunningLed d2
 
 define stirlingEngines -260316435
+define steamCoolingVent -1129453144
+define gasSensor -1252983604
+define combustor 1840108251
+define fuelMixer 2104106366
+define filterUnit -348054045
 # set max temp to 135C in Kelvin
 define maxOperatingTemperature 408
 define maxVolumeStored 100
 define maxPressure 5000
-define fuelMixerInput1 85 # 90% atmo + 10% oxygen
+# 90% atmo + 10% oxygen
+define fuelMixerInput1 85
 
 alias runSystem r0
 alias outsideTemp r1
@@ -18,66 +21,102 @@ alias waterTankVolume r2
 alias tempOK r3
 alias volumeOK r4
 alias filtersOK r5
-alias filterPresent0 r6
-alias filterPresent1 r7
-alias filterStatus0 r8
-alias filterStatus1 r9
+alias noFiltersOk r6
+alias deviceHashCount r7
+alias deviceIter r8
+alias unitFiltersStatus r9
+alias unitFiltersPresent r10
+alias slotStatus r11
+alias slotPresent r12
+alias slotIter r13
+alias currentUnit r14
 
 yield
 jal setup
 
 mainLoop:
     yield
-    jal checkRunConditions
-    jal doRunSystem
-    j mainLoop
+    j checkRunConditions
 
 setup:
     move runSystem 0
-    s steamCoolingVent Mode 1
-    s steamCoolingVent Lock 1
-    s fuelMixer Setting fuelMixerInput1
-    s fuelMixer Lock 1
-    # disable all components
-    s steamCoolingVent On 0 
-    s waterFilter On 1
-    sb stirlingEngines On 0
-    s combustor On 0
-    s fuelMixer On 0
-    j ra
+    sb steamCoolingVent Mode 1
+    sb steamCoolingVent Lock 1
+    sb fuelMixer Setting fuelMixerInput1
+    sb fuelMixer Lock 1
+    s filterWarningLed Color 4
+    s filterWarningLed Lock 1
+    s systemRunningLed Color 2
+    s systemRunningLed Lock 1
+    sb filterUnit On 1
+    j doRunSystem
 
 doRunSystem:
-    s steamCoolingVent On runSystem
+    sb steamCoolingVent On runSystem
     sb stirlingEngines On runSystem
-    s waterFilter Mode runSystem
-    s combustor On runSystem
-    s fuelMixer On runSystem
-    j ra
-    
+    sb filterUnit Mode runSystem
+    sb combustor On runSystem
+    sb fuelMixer On runSystem
+    s filterWarningLed On noFiltersOk
+    s systemRunningLed On runSystem
+    j mainLoop
 
 checkRunConditions:
-    # check temps and water volume
-    l outsideTemp sensor Temperature
-    l waterTankVolume waterTank VolumeOfLiquid
-    s db Setting waterTankVolume
-    # check filters and their status
-    ls filterPresent0 waterFilter 1 Occupied
-    ls filterPresent1 waterFilter 2 Occupied
-    ls filterStatus0 waterFilter 1 Quantity
-    ls filterStatus1 waterFilter 2 Quantity
-    or filtersOK filterPresent0 filterPresent1
-    sgt filterStatus0 filterStatus0 0
-    sgt filterStatus1 filterStatus1 0
-    or filterStatus0 filterStatus0 filterStatus1
-    and filtersOK filtersOK filterStatus0
+    # Assume filters are OK, will be set to 0 if any fail
+    move filtersOK 1
+    # Assume no filters are depleted
+    move noFiltersOk 0
+    move deviceIter 0
 
-    # check if temp is below max temp
+    jal checkFilters
+    jal checkOtherConditions
+    j doRunSystem
+
+LoopFiltration:
+    bge deviceIter deviceHashCount ra
+    beqz currentUnit ra
+    s currentUnit Index deviceIter
+    add deviceIter deviceIter 1
+    j checkFilters_unit
+
+checkFilters:
+    lb currentUnit filterUnit 4
+    move deviceHashCount currentUnit.Count
+    move deviceIter 0
+    j LoopFiltration
+
+checkFilters_unit:
+    move unitFiltersPresent 0
+    move unitFiltersStatus 0
+    move slotStatus 1
+    move slotIter 1
+    j checkFilter_slot
+    move slotIter 2
+    j checkFilter_slot
+    j LoopFiltration
+
+checkFilter_slot:
+    ls slotPresent currentUnit slotIter Occupied
+    or unitFiltersPresent unitFiltersPresent slotPresent
+    beqz slotPresent checkFilter_slot_end
+    ls slotStatus currentUnit slotIter Quantity
+    sgt slotStatus slotStatus 0
+    or unitFiltersStatus unitFiltersStatus slotStatus
+    j checkFilter_slot_end
+
+checkFilter_slot_end:
+    and filtersOK filtersOK unitFiltersPresent
+    and filtersOK filtersOK unitFiltersStatus
+
+checkOtherConditions:
+    lb outsideTemp gasSensor Temperature Average
+    l waterTankVolume waterTank VolumeOfLiquid
     sle tempOK outsideTemp maxOperatingTemperature
     sle volumeOK waterTankVolume maxVolumeStored
-    # run system if temp and volume and filters are ok
-    # s db Setting tempOK
-    # s db Setting volumeOK
+    # Combine temp and volume checks
     and runSystem tempOK volumeOK
+    # AND with the final filter status
     and runSystem runSystem filtersOK
-    # s db Setting runSystem
+    # Set if any filter is depleted
+    seqz noFiltersOk filtersOK
     j ra
