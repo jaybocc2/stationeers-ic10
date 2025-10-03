@@ -1,0 +1,109 @@
+alias waterTank d0
+alias filterWarningLed d1
+alias systemRunningLed d2
+
+define stirlingEngines -260316435
+define steamCoolingVent -1129453144
+define gasSensor -1252983604
+define combustor 1840108251
+define fuelMixer 2104106366
+define filterUnit -348054045
+define purgeValve -737232128
+define kConst 273 # K - 273 = C
+define maxOperatingTemperature 410 # set max temp to 135C in Kelvin
+define maxVolumeStored 100
+define maxPressure 9000
+define purgeValveSetting 0
+define pipeAnalyzerHash 435685051
+define OxygenAnalyzerHash HASH("Oxygen Pipe Analyzer")
+define VolatilesAnalyzerHash HASH("Volatiles Pipe Analyzer")
+define H2OFiltrationHash HASH("H2O Filtration")
+define O2FiltrationHash HASH("O2 Filtration")
+define minFuelInputPressure 1000
+
+alias runSystem r0
+alias outsideTemp r1
+alias waterTankVolume r2
+alias tempOK r3
+alias volumeOK r4
+alias filtersOK r5
+alias filtrationHealth r6
+alias fuelMixerSetting r7
+alias analyzerT r8
+alias fuelInputPressureOK r9
+alias fuelPressureT r10
+
+
+yield
+jal setup
+
+mainLoop:
+    yield
+    jal checkMixInput
+    jal checkFiltration
+    jal checkOtherConditions
+    jal setFuelMix
+    jal doRunSystem
+    j mainLoop
+
+setup:
+    move runSystem 0
+    sb pipeAnalyzerHash On 1
+    sb steamCoolingVent Mode 1
+    sb steamCoolingVent Lock 1
+    sb fuelMixer Lock 1
+    sb purgeValve Lock 1
+    sb purgeValve Setting purgeValveSetting
+    s filterWarningLed Color 4
+    s filterWarningLed Lock 1
+    s systemRunningLed Color 2
+    s systemRunningLed Lock 1
+    sb filterUnit On 1
+    j ra
+
+doRunSystem:
+    sb steamCoolingVent On runSystem
+    sb stirlingEngines On runSystem
+    sb purgeValve On runSystem
+    s systemRunningLed On runSystem
+    sb combustor On runSystem
+    j ra
+
+checkMixInput:
+    lbn fuelPressureT pipeAnalyzerHash VolatilesAnalyzerHash Pressure Average
+    sgt fuelInputPressureOK fuelPressureT minFuelInputPressure
+    lbn fuelPressureT pipeAnalyzerHash OxygenAnalyzerHash Pressure Average
+    sgt fuelPressureT fuelPressureT minFuelInputPressure
+    and fuelInputPressureOK fuelInputPressureOK fuelPressureT
+
+checkFiltration:
+    lbn filtrationHealth filterUnit H2OFiltrationHash Mode Average 
+    sgtz filtersOK filtrationHealth
+    lbn filtrationHealth filterUnit O2FiltrationHash Mode Average 
+    sgtz filtrationHealth filtrationHealth
+    and filtersOK filtersOK filtrationHealth
+    j ra
+
+checkOtherConditions:
+    lb outsideTemp gasSensor Temperature Average
+    l waterTankVolume waterTank VolumeOfLiquid
+    sle tempOK outsideTemp maxOperatingTemperature
+    sle volumeOK waterTankVolume maxVolumeStored
+    and runSystem tempOK volumeOK # Combine temp and volume checks
+    and runSystem runSystem filtersOK # AND with the final filter status
+    and runSystem runSystem fuelInputPressureOK
+    j ra
+
+setFuelMix:
+    # input1 - oxygen, input2 - volatiles
+    # gas mixer setting = 100/(1+((2*T.v)/T.o))
+    move analyzerT 0
+    lbn analyzerT pipeAnalyzerHash VolatilesAnalyzerHash Temperature Average
+    mul fuelMixerSetting analyzerT 2 # (2*T.v)
+    lbn analyzerT pipeAnalyzerHash OxygenAnalyzerHash Temperature Average
+    div fuelMixerSetting fuelMixerSetting analyzerT # ((2*T.v)/T.o)
+    add fuelMixerSetting 1 fuelMixerSetting # (1+((2*T.v)/T.o))
+    div fuelMixerSetting 100 fuelMixerSetting # 100/(1+((2*T.v)/T.o))
+    sb fuelMixer Setting fuelMixerSetting
+    sb fuelMixer On runSystem
+    j ra

@@ -8,12 +8,12 @@ define gasSensor -1252983604
 define combustor 1840108251
 define fuelMixer 2104106366
 define filterUnit -348054045
-# set max temp to 135C in Kelvin
-define maxOperatingTemperature 408
+define purgeValve -737232128
+define maxOperatingTemperature 410 # set max temp to 135C in Kelvin
 define maxVolumeStored 100
-define maxPressure 5000
-# 90% atmo + 10% oxygen
-define fuelMixerInput1 85
+define maxPressure 9000
+define fuelMixerInput1 25 # 90% atmo + 10% oxygen # for filtered volatiles and 25* O2
+define purgeValveSetting 10
 
 alias runSystem r0
 alias outsideTemp r1
@@ -21,92 +21,80 @@ alias waterTankVolume r2
 alias tempOK r3
 alias volumeOK r4
 alias filtersOK r5
-alias noFiltersOk r6
-alias deviceHashCount r7
-alias deviceIter r8
-alias unitFiltersStatus r9
-alias unitFiltersPresent r10
-alias slotStatus r11
-alias slotPresent r12
-alias slotIter r13
-alias currentUnit r14
+alias needReplaceFilters r6
+alias combustionPressureOK r7
+alias combustorOutputPressure r8
+alias runCombustion r9
+alias unitFiltersStatus r10
+alias unitFiltersPresent r11
+alias slotStatus r12
+
 
 yield
 jal setup
 
 mainLoop:
     yield
-    j checkRunConditions
+    jal checkRunConditions
+    jal doRunSystem
+    j mainLoop
 
 setup:
     move runSystem 0
+    move needReplaceFilters 0
+    move runCombustion 0
+    move combustionPressureOK 0
     sb steamCoolingVent Mode 1
     sb steamCoolingVent Lock 1
     sb fuelMixer Setting fuelMixerInput1
     sb fuelMixer Lock 1
+    sb purgeValve Lock 1
+    sb purgeValve Setting purgeValveSetting
     s filterWarningLed Color 4
     s filterWarningLed Lock 1
     s systemRunningLed Color 2
     s systemRunningLed Lock 1
     sb filterUnit On 1
-    j doRunSystem
+    j ra
 
 doRunSystem:
     sb steamCoolingVent On runSystem
     sb stirlingEngines On runSystem
     sb filterUnit Mode runSystem
-    sb combustor On runSystem
-    sb fuelMixer On runSystem
-    s filterWarningLed On noFiltersOk
+    sb purgeValve On runSystem
+    s filterWarningLed On needReplaceFilters
     s systemRunningLed On runSystem
-    j mainLoop
+    j ra
+
+doRunCombustion:
+    lb combustorOutputPressure combustor PressureOutput Average
+    sle combustionPressureOK combustorOutputPressure maxPressure
+    and runCombustion runSystem combustionPressureOK
+    sb combustor On runCombustion
+    sb fuelMixer On runCombustion
+    j ra
 
 checkRunConditions:
     # Assume filters are OK, will be set to 0 if any fail
     move filtersOK 1
-    # Assume no filters are depleted
-    move noFiltersOk 0
-    move deviceIter 0
+    move needReplaceFilters 0
 
+    push ra
     jal checkFilters
     jal checkOtherConditions
-    j doRunSystem
-
-LoopFiltration:
-    bge deviceIter deviceHashCount ra
-    beqz currentUnit ra
-    s currentUnit Index deviceIter
-    add deviceIter deviceIter 1
-    j checkFilters_unit
+    pop ra
+    j ra
 
 checkFilters:
-    lb currentUnit filterUnit 4
-    move deviceHashCount currentUnit.Count
-    move deviceIter 0
-    j LoopFiltration
-
-checkFilters_unit:
-    move unitFiltersPresent 0
     move unitFiltersStatus 0
-    move slotStatus 1
-    move slotIter 1
-    j checkFilter_slot
-    move slotIter 2
-    j checkFilter_slot
-    j LoopFiltration
-
-checkFilter_slot:
-    ls slotPresent currentUnit slotIter Occupied
-    or unitFiltersPresent unitFiltersPresent slotPresent
-    beqz slotPresent checkFilter_slot_end
-    ls slotStatus currentUnit slotIter Quantity
-    sgt slotStatus slotStatus 0
-    or unitFiltersStatus unitFiltersStatus slotStatus
-    j checkFilter_slot_end
-
-checkFilter_slot_end:
-    and filtersOK filtersOK unitFiltersPresent
-    and filtersOK filtersOK unitFiltersStatus
+    lbs slotStatus filterUnit 0 Quantity Minimum
+    sgtz filtersOK slotStatus
+    seqz needReplaceFilters filtersOK
+    beqz filtersOK ra
+    lbs slotStatus filterUnit 1 Quantity Minimum
+    sgtz filtersOK slotStatus
+    seqz needReplaceFilters filtersOK
+    j ra
 
 checkOtherConditions:
     lb outsideTemp gasSensor Temperature Average
@@ -118,5 +106,5 @@ checkOtherConditions:
     # AND with the final filter status
     and runSystem runSystem filtersOK
     # Set if any filter is depleted
-    seqz noFiltersOk filtersOK
+    seqz needReplaceFilters filtersOK
     j ra

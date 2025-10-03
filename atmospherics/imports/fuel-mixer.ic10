@@ -1,0 +1,24 @@
+# input 1 == straight input
+# input 2 == side input
+
+mixratio_ox:
+    # input1 - oxygen, input2 - volatiles
+    # gas mixer setting = 100/(1+((2*T.v)/T.o))
+    mul r0 T.v 2 # (2*T.v)
+    div r0 r0 T.o # ((2*T.v)/T.o)
+    add r0 1 r0 # (1+((2*T.v)/T.o))
+    div r0 100 r0 # 100/(1+((2*T.v)/T.o))
+    sb mixer Setting r0
+    j ra
+
+mixratio_vol:
+    # input1 - volatiles, input2 - oxygen
+    # gas mixer setting = 100/(1+(T.o/(2*T.v)))
+    mul r0 T.v 2 # (2*T.v)
+    div r0 T.o r0 # (T.o/(2*T.v))
+    add r0 1 r0 # (1+(T.o/(2*T.v)))
+    div r0 100 r0 # 100/(1+(T.o/(2*T.v)))
+    sb mixer Setting r0
+    j ra
+
+# And, for Vol+N2O, skip the (2*T.v) multiplier to get the 50/50 mix.

@@ -1,0 +1,60 @@
+alias self db
+# alias pin1 d0 # invalid pins...?
+# alias pin2 d1 # debug LED
+alias runAc r0
+alias targetTempK r3
+alias wastePressure r4
+alias wasteTemp r5
+alias intakeTemp r6
+alias intakeTempHot r7
+alias wasteTempOk r8
+alias wastePressureOk r9
+alias openDoor r14
+
+define kConst 273.15 # K - 273 = C
+define targetTemp 95 # 95C - target temp for AC
+define maxWasteTemp 200 #  200C - Max working temp for waste gas
+define minWastePressure 1000 # 1mPa - Min working pressure for waste gas
+
+jal setup
+
+mainLoop:
+    yield
+    jal checkIntakeGas
+    jal checkWasteGas
+    yield
+    jal doRunAC
+    j mainLoop
+
+setup:
+    move targetTempK 0
+    add targetTempK targetTemp kConst
+    s self Setting targetTempK
+    move runAc 0
+    move intakeTempHot 0
+    move wasteTempOk 0
+    move wastePressureOk 0
+    j ra
+
+checkIntakeGas:
+    l intakeTemp self TemperatureInput
+    sub intakeTemp intakeTemp kConst
+    sge intakeTempHot intakeTemp targetTemp
+    j ra
+
+checkWasteGas:
+    l wasteTemp self TemperatureOutput2
+    sub wasteTemp wasteTemp kConst
+    sle wasteTempOk wasteTemp maxWasteTemp
+    l wastePressure self PressureOutput2
+    sgt wastePressureOk wastePressure minWastePressure
+    j ra
+
+doRunAC:
+    and runAc intakeTempHot wasteTempOk
+    and runAc runAc wastePressureOk
+
+    l openDoor self Open
+    not openDoor runAc
+    s self Mode runAc
+    j ra
